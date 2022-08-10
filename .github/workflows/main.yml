@@ -1,0 +1,147 @@
+# Description: Build OpenWrt using GitHub Actions
+
+name: Build OpenWrt
+
+on:
+  repository_dispatch:
+  workflow_dispatch:
+
+env:
+  REPO_URL: https://github.com/coolsnowwolf/lede
+  REPO_BRANCH: master
+  CONFIG_FILE: .config
+  APT_GET: 'build-essential asciidoc binutils bzip2 gawk gettext git libncurses5-dev libz-dev patch python3 python2.7 unzip zlib1g-dev lib32gcc1 libc6-dev-i386 subversion flex uglifyjs git-core gcc-multilib p7zip p7zip-full msmtp libssl-dev texinfo libglib2.0-dev xmlto qemu-utils upx libelf-dev autoconf automake libtool autopoint device-tree-compiler g++-multilib antlr3 gperf wget curl swig rsync'
+  TZ: Asia/Shanghai
+
+jobs:
+  build:
+    runs-on: ubuntu-20.04
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@main
+
+    - name: 安装环境
+      run: |
+        sudo rm -rf /etc/apt/sources.list.d/* /usr/share/dotnet /usr/local/lib/android /opt/ghc
+        sudo -E apt-get -qq update
+        sudo -E apt-get -qq install $APT_GET
+        sudo -E apt-get -qq autoremove --purge
+        sudo -E apt-get -qq clean
+        sudo timedatectl set-timezone "$TZ"
+
+    - name: 克隆源码
+      run: |
+        df -hT $PWD
+        git clone $REPO_URL -b $REPO_BRANCH openwrt
+
+    - name: diy1
+      run: |
+        cd openwrt
+        # sed -i 's/^#\(.*helloworld\)/\1/' feeds.conf.default
+        # echo 'src-git helloworld https://github.com/fw876/helloworld' >>feeds.conf.default
+        # echo 'src-git passwall https://github.com/xiaorouji/openwrt-passwall' >>feeds.conf.default
+        # sed -i '$a src-git openclash https://github.com/vernesong/OpenClash' feeds.conf.default
+
+    - name: Update feeds
+      run: cd openwrt && ./scripts/feeds update -a
+
+    - name: Install feeds
+      run: cd openwrt && ./scripts/feeds install -a
+
+    - name: diy2
+      run: |
+        cd openwrt
+
+        # sed -i 's/192.168.1.1/192.168.2.1/g' package/base-files/files/bin/config_generate
+
+        rm -rf feeds/luci/themes/luci-theme-argon
+        rm -rf feeds/luci/applications/luci-app-dockerman
+        rm -rf feeds/packages/multimedia/aliyundrive-fuse
+        rm -rf feeds/luci/applications/luci-app-aliyundrive-fuse
+        rm -rf feeds/packages/multimedia/aliyundrive-webdav
+        rm -rf feeds/luci/applications/luci-app-aliyundrive-webdav
+
+        git clone https://github.com/kongfl888/luci-app-adguardhome.git package/luci-app-adguardhome
+        git clone -b 18.06 https://github.com/jerrykuku/luci-theme-argon.git package/luci-theme-argon
+        git clone https://github.com/jerrykuku/luci-app-argon-config package/luci-app-argon-config
+        svn co https://github.com/lisaac/luci-app-dockerman/trunk/applications/luci-app-dockerman package/luci-app-dockerman
+        svn co https://github.com/messense/aliyundrive-fuse/trunk/openwrt/aliyundrive-fuse feeds/packages/multimedia/aliyundrive-fuse
+        svn co https://github.com/messense/aliyundrive-fuse/trunk/openwrt/luci-app-aliyundrive-fuse feeds/luci/applications/luci-app-aliyundrive-fuse
+        svn co https://github.com/messense/aliyundrive-webdav/trunk/openwrt/aliyundrive-webdav feeds/packages/multimedia/aliyundrive-webdav
+        svn co https://github.com/messense/aliyundrive-webdav/trunk/openwrt/luci-app-aliyundrive-webdav feeds/luci/applications/luci-app-aliyundrive-webdav
+
+        svn co https://github.com/vernesong/OpenClash/trunk/luci-app-openclash package/luci-app-openclash
+        # 编译 po2lmo (如果有po2lmo可跳过)
+        pushd package/luci-app-openclash/tools/po2lmo
+        make && sudo make install
+        popd
+        svn co https://github.com/xiaorouji/openwrt-passwall/trunk/brook package/brook
+        svn co https://github.com/xiaorouji/openwrt-passwall/trunk/chinadns-ng package/chinadns-ng
+        svn co https://github.com/xiaorouji/openwrt-passwall/trunk/tcping package/tcping
+        svn co https://github.com/xiaorouji/openwrt-passwall/trunk/trojan-go package/trojan-go
+        svn co https://github.com/xiaorouji/openwrt-passwall/trunk/trojan-plus package/trojan-plus
+        svn co https://github.com/xiaorouji/openwrt-passwall/branches/luci/luci-app-passwall package/luci-app-passwall
+        svn co https://github.com/xiaorouji/openwrt-passwall2/trunk/luci-app-passwall2 package/luci-app-passwall2
+        svn co https://github.com/xiaorouji/openwrt-passwall/trunk/xray-core package/xray-core
+        svn co https://github.com/xiaorouji/openwrt-passwall/trunk/xray-plugin package/xray-plugin
+        svn co https://github.com/xiaorouji/openwrt-passwall/trunk/ssocks package/ssocks
+        svn co https://github.com/xiaorouji/openwrt-passwall/trunk/hysteria package/hysteria
+        svn co https://github.com/xiaorouji/openwrt-passwall/trunk/v2ray-plugin package/v2ray-plugin
+        svn co https://github.com/xiaorouji/openwrt-passwall/trunk/v2ray-core package/v2ray-core
+        svn co https://github.com/xiaorouji/openwrt-passwall/trunk/dns2tcp package/dns2tcp
+        svn co https://github.com/fw876/helloworld/trunk/v2ray-geodata package/v2ray-geodata
+        svn co https://github.com/fw876/helloworld/trunk/naiveproxy package/naiveproxy
+        svn co https://github.com/fw876/helloworld/trunk/sagernet-core package/sagernet-core
+        svn co https://github.com/fw876/helloworld/trunk/shadowsocks-rust package/shadowsocks-rust
+        svn co https://github.com/fw876/helloworld/trunk/shadowsocksr-libev package/shadowsocksr-libev
+        svn co https://github.com/fw876/helloworld/trunk/luci-app-ssr-plus package/luci-app-ssr-plus
+        svn co https://github.com/fw876/helloworld/trunk/simple-obfs package/simple-obfs
+        svn co https://github.com/fw876/helloworld/trunk/trojan package/trojan
+
+        ./scripts/feeds update -a
+        ./scripts/feeds install -a
+
+    - name: 下载包文件
+      run: |
+        [ -e $CONFIG_FILE ] && mv $CONFIG_FILE openwrt/.config
+        cd openwrt
+        make defconfig
+        make download -j8
+        find dl -size -1024c -exec ls -l {} \;
+        find dl -size -1024c -exec rm -f {} \;
+
+    - name: 编译固件
+      run: |
+        cd openwrt
+        echo -e "$(nproc) thread compile"
+        make -j$(nproc) || make -j1 || make -j1 V=s
+        grep '^CONFIG_TARGET.*DEVICE.*=y' .config | sed -r 's/.*DEVICE_(.*)=y/\1/' > DEVICE_NAME
+        [ -s DEVICE_NAME ] && echo "DEVICE_NAME=_$(cat DEVICE_NAME)" >> $GITHUB_ENV
+        echo "FILE_DATE=_$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
+
+    - name: 检查硬盘空间
+      if: (!cancelled())
+      run: df -hT
+
+    - name: 整理文件
+      id: organize
+      if: (!cancelled())
+      run: |
+        cd openwrt/bin/targets/*/*
+        rm -rf packages
+        echo "FIRMWARE=$PWD" >> $GITHUB_ENV
+        echo "::set-output name=status::success"
+
+    - name: 上传固件到artifact
+      uses: actions/upload-artifact@main
+      if: steps.organize.outputs.status == 'success' && !cancelled()
+      with:
+        name: OpenWrt_firmware${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
+        path: ${{ env.FIRMWARE }}
+
+    - name: 删除多余工作流
+      uses: Mattraks/delete-workflow-runs@v2.0.2
+      with:
+        retain_days: 1
+        keep_minimum_runs: 3
